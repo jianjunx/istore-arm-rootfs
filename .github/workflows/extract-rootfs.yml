@@ -32,15 +32,58 @@ jobs:
     - name: 下载iStoreOS镜像
       run: |
         echo "开始下载镜像文件..."
-        wget -O istoreos.img.gz "${{ github.event.inputs.image_url || 'https://fw21.koolcenter.com:60010/iStoreOS/alpha/24.10/armsr/istoreos-24.10.1-2025052114-armsr-squashfs-combined-efi.img.gz' }}"
+        IMAGE_URL="${{ github.event.inputs.image_url || 'https://fw21.koolcenter.com:60010/iStoreOS/alpha/24.10/armsr/istoreos-24.10.1-2025052114-armsr-squashfs-combined-efi.img.gz' }}"
+        echo "下载链接: $IMAGE_URL"
+        
+        # 使用wget下载，带有重试和进度显示
+        wget --tries=3 --timeout=30 --progress=bar:force \
+             --user-agent="Mozilla/5.0 (compatible; GitHub-Actions)" \
+             -O istoreos.img.gz "$IMAGE_URL"
+        
+        if [ $? -ne 0 ]; then
+          echo "错误: 下载失败"
+          exit 1
+        fi
+        
         echo "镜像文件下载完成"
+        echo "下载文件大小: $(ls -lh istoreos.img.gz)"
+        
+        # 检查文件是否为gzip格式
+        if ! file istoreos.img.gz | grep -q "gzip compressed"; then
+          echo "警告: 下载的文件可能不是gzip格式"
+          file istoreos.img.gz
+        fi
         
     - name: 解压镜像文件
       run: |
         echo "开始解压镜像文件..."
-        gzip -d istoreos.img.gz
+        echo "原始文件大小: $(ls -lh istoreos.img.gz)"
+        
+        # 使用gunzip并忽略trailing garbage警告
+        if gunzip -f istoreos.img.gz 2>&1 | grep -q "trailing garbage ignored"; then
+          echo "警告: 检测到trailing garbage，但解压成功"
+        fi
+        
+        # 检查解压后的文件是否存在
+        if [ ! -f "istoreos.img" ]; then
+          echo "错误: 解压失败，镜像文件不存在"
+          exit 1
+        fi
+        
         echo "镜像文件解压完成"
-        ls -lh istoreos.img
+        echo "解压后文件大小: $(ls -lh istoreos.img)"
+        
+        # 验证文件头部，确认是否为有效的磁盘镜像
+        echo "验证镜像文件格式..."
+        file istoreos.img
+        
+        # 检查文件大小（应该大于100MB）
+        file_size=$(stat -c%s istoreos.img)
+        if [ $file_size -lt 104857600 ]; then
+          echo "警告: 镜像文件可能不完整，大小小于100MB"
+        else
+          echo "镜像文件大小正常: $(echo $file_size | numfmt --to=iec-i)B"
+        fi
         
     - name: 分析镜像分区结构
       run: |
