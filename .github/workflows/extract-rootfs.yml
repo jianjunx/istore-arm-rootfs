@@ -60,17 +60,18 @@ jobs:
           echo "自动查找最新版本..."
           echo "查找目录: $BASE_URL"
           
-          # 获取目录列表
-          DIRECTORY_LIST=$(curl -s "$BASE_URL" || echo "")
+          # 获取目录列表（跟随重定向）
+          DIRECTORY_LIST=$(curl -L -s "$BASE_URL" || echo "")
           
           if [ -z "$DIRECTORY_LIST" ]; then
             echo "错误: 无法获取目录列表"
             exit 1
           fi
           
-          # 使用grep和sort查找最新文件
+          # 从HTML表格中提取href属性，然后使用grep和sort查找最新文件
           LATEST_FILE=$(echo "$DIRECTORY_LIST" | \
-            grep -oE 'istoreos-[0-9]+\.[0-9]+\.[0-9]+-[0-9]+-armsr-squashfs-combined-efi\.img\.gz' | \
+            grep -oE 'href="istoreos-[0-9]+\.[0-9]+\.[0-9]+-[0-9]+-armsr-squashfs-combined-efi\.img\.gz"' | \
+            sed 's/href="//g' | sed 's/"//g' | \
             sort -V | \
             tail -1)
           
@@ -78,7 +79,7 @@ jobs:
             echo "错误: 未找到符合命名规则的镜像文件"
             echo "查找模式: istoreos-*.*.* -*-armsr-squashfs-combined-efi.img.gz"
             echo "目录内容预览:"
-            echo "$DIRECTORY_LIST" | grep -oE '[^"]*\.img\.gz' | head -10
+            echo "$DIRECTORY_LIST" | grep -oE 'href="[^"]*\.img\.gz"' | sed 's/href="//g' | sed 's/"//g' | head -10
             exit 1
           fi
           
