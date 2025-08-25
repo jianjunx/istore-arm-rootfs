@@ -49,7 +49,7 @@ docker run -d --name istoreos --privileged ghcr.io/YOUR_USERNAME/istoreos:latest
 docker run -d --name istoreos-gateway --privileged --network host ghcr.io/YOUR_USERNAME/istoreos:latest
 ```
 
-> ⚠️ **注意**: 请将 `YOUR_USERNAME` 替换为您的GitHub用户名
+> ⚠️ **注意**: 请将 `YOUR_USERNAME` 替换为您的GitHub用户名（例如：`jianjunx`）
 
 🔗 **查看可用镜像版本**：[GitHub Container Registry](https://github.com/YOUR_USERNAME/istore-arm-rootfs/pkgs/container/istoreos)
 

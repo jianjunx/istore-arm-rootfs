@@ -269,8 +269,8 @@ jobs:
         platforms: linux/arm64
         push: true
         tags: |
-          ghcr.io/${{ github.repository_owner }}/istoreos:latest
-          ghcr.io/${{ github.repository_owner }}/istoreos:${{ steps.find-latest.outputs.release_tag }}
+          ghcr.io/${{ github.actor }}/istoreos:latest
+          ghcr.io/${{ github.actor }}/istoreos:${{ steps.find-latest.outputs.release_tag }}
         labels: |
           org.opencontainers.image.title=iStoreOS
           org.opencontainers.image.description=iStoreOS ARM64 RootFS Docker Image
@@ -298,28 +298,28 @@ jobs:
         - **自动检测**: ✅ 自动获取最新版本
         
         ## Docker镜像
-        - **镜像仓库**: \`ghcr.io/${{ github.repository_owner }}/istoreos\`
-        - **最新版本**: \`ghcr.io/${{ github.repository_owner }}/istoreos:latest\`
-        - **指定版本**: \`ghcr.io/${{ github.repository_owner }}/istoreos:${{ steps.find-latest.outputs.release_tag }}\`
+        - **镜像仓库**: \`ghcr.io/${{ github.actor }}/istoreos\`
+        - **最新版本**: \`ghcr.io/${{ github.actor }}/istoreos:latest\`
+        - **指定版本**: \`ghcr.io/${{ github.actor }}/istoreos:${{ steps.find-latest.outputs.release_tag }}\`
         
         ### Docker使用方法
         \`\`\`bash
         # 拉取镜像
-        docker pull ghcr.io/${{ github.repository_owner }}/istoreos:latest
+        docker pull ghcr.io/${{ github.actor }}/istoreos:latest
         
         # 运行容器
-        docker run -d --name istoreos --privileged ghcr.io/${{ github.repository_owner }}/istoreos:latest
+        docker run -d --name istoreos --privileged ghcr.io/${{ github.actor }}/istoreos:latest
         
         # 旁路由模式运行（需要调整网络配置）
-        docker run -d --name istoreos-gateway --privileged --network host ghcr.io/${{ github.repository_owner }}/istoreos:latest
+        docker run -d --name istoreos-gateway --privileged --network host ghcr.io/${{ github.actor }}/istoreos:latest
         \`\`\`
         
         ## 使用方法
         
         ### 方法1: 使用Docker镜像（推荐）
         \`\`\`bash
-        docker pull ghcr.io/${{ github.repository_owner }}/istoreos:latest
-        docker run -d --privileged --name istoreos ghcr.io/${{ github.repository_owner }}/istoreos:latest
+        docker pull ghcr.io/${{ github.actor }}/istoreos:latest
+        docker run -d --privileged --name istoreos ghcr.io/${{ github.actor }}/istoreos:latest
         \`\`\`
         
         ### 方法2: 手动构建Docker镜像
@@ -369,5 +369,5 @@ jobs:
         rm -f istoreos.img rootfs.tar.gz release_notes.md Dockerfile
         echo "工作流程完成"
         echo "✅ rootfs提取完成"
-        echo "✅ Docker镜像已发布到 ghcr.io/${{ github.repository_owner }}/istoreos"
+        echo "✅ Docker镜像已发布到 ghcr.io/${{ github.actor }}/istoreos"
         echo "✅ Release已创建完成"
