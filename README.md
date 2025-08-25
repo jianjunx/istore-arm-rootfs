@@ -15,6 +15,8 @@
 
 ### 手动触发提取
 
+https://fw0.koolcenter.com/iStoreOS/armsr
+
 1. 前往项目的 `Actions` 页面
 2. 选择 `Extract iStoreOS ARM64 RootFS` 工作流
 3. 点击 `Run workflow`
