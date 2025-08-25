@@ -4,13 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       image_url:
-        description: 'iStoreOS镜像下载URL'
-        required: true
-        default: 'https://fw21.koolcenter.com:60010/iStoreOS/alpha/24.10/armsr/istoreos-24.10.1-2025052114-armsr-squashfs-combined-efi.img.gz'
+        description: 'iStoreOS镜像下载URL（留空则自动查找最新版本）'
+        required: false
+        default: ''
       release_tag:
-        description: '发布标签'
-        required: true
-        default: 'v24.10.1-2025052114'
+        description: '发布标签（留空则基于镜像版本自动生成）'
+        required: false
+        default: ''
+      base_url:
+        description: 'iStoreOS镜像目录URL'
+        required: false
+        default: 'https://fw0.koolcenter.com/iStoreOS/armsr/'
 
 
 jobs:
@@ -27,12 +31,83 @@ jobs:
     - name: 设置工作环境
       run: |
         sudo apt-get update
-        sudo apt-get install -y wget gzip fdisk parted squashfs-tools
+        sudo apt-get install -y wget gzip fdisk parted squashfs-tools curl
+        
+    - name: 查找最新iStoreOS镜像
+      id: find-latest
+      run: |
+        echo "开始查找最新镜像文件..."
+        
+        BASE_URL="${{ github.event.inputs.base_url || 'https://fw0.koolcenter.com/iStoreOS/armsr/' }}"
+        CUSTOM_URL="${{ github.event.inputs.image_url }}"
+        
+        if [ -n "$CUSTOM_URL" ]; then
+          echo "使用用户指定的URL: $CUSTOM_URL"
+          echo "image_url=$CUSTOM_URL" >> $GITHUB_OUTPUT
+          
+          # 从文件名提取版本信息
+          FILENAME=$(basename "$CUSTOM_URL")
+          if [[ $FILENAME =~ istoreos-([0-9]+\.[0-9]+\.[0-9]+)-([0-9]+)-armsr ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+            BUILD="${BASH_REMATCH[2]}"
+            RELEASE_TAG="v${VERSION}-${BUILD}"
+            echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
+            echo "提取到版本信息: $RELEASE_TAG"
+          else
+            echo "release_tag=custom-$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "自动查找最新版本..."
+          echo "查找目录: $BASE_URL"
+          
+          # 获取目录列表
+          DIRECTORY_LIST=$(curl -s "$BASE_URL" || echo "")
+          
+          if [ -z "$DIRECTORY_LIST" ]; then
+            echo "错误: 无法获取目录列表"
+            exit 1
+          fi
+          
+          # 使用grep和sort查找最新文件
+          LATEST_FILE=$(echo "$DIRECTORY_LIST" | \
+            grep -oE 'istoreos-[0-9]+\.[0-9]+\.[0-9]+-[0-9]+-armsr-squashfs-combined-efi\.img\.gz' | \
+            sort -V | \
+            tail -1)
+          
+          if [ -z "$LATEST_FILE" ]; then
+            echo "错误: 未找到符合命名规则的镜像文件"
+            echo "查找模式: istoreos-*.*.* -*-armsr-squashfs-combined-efi.img.gz"
+            echo "目录内容预览:"
+            echo "$DIRECTORY_LIST" | grep -oE '[^"]*\.img\.gz' | head -10
+            exit 1
+          fi
+          
+          LATEST_URL="${BASE_URL}${LATEST_FILE}"
+          echo "找到最新文件: $LATEST_FILE"
+          echo "下载链接: $LATEST_URL"
+          echo "image_url=$LATEST_URL" >> $GITHUB_OUTPUT
+          
+          # 提取版本信息
+          if [[ $LATEST_FILE =~ istoreos-([0-9]+\.[0-9]+\.[0-9]+)-([0-9]+)-armsr ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+            BUILD="${BASH_REMATCH[2]}"
+            RELEASE_TAG="v${VERSION}-${BUILD}"
+            echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
+            echo "版本信息: $RELEASE_TAG"
+          else
+            echo "release_tag=auto-$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
+          fi
+        fi
+        
+        # 输出最终结果
+        echo "✅ 镜像查找完成"
+        echo "🔗 下载URL: $(cat $GITHUB_OUTPUT | grep image_url | cut -d'=' -f2-)"
+        echo "🏷️ 发布标签: $(cat $GITHUB_OUTPUT | grep release_tag | cut -d'=' -f2-)"
         
     - name: 下载iStoreOS镜像
       run: |
         echo "开始下载镜像文件..."
-        IMAGE_URL="${{ github.event.inputs.image_url || 'https://fw21.koolcenter.com:60010/iStoreOS/alpha/24.10/armsr/istoreos-24.10.1-2025052114-armsr-squashfs-combined-efi.img.gz' }}"
+        IMAGE_URL="${{ steps.find-latest.outputs.image_url }}"
         echo "下载链接: $IMAGE_URL"
         
         # 使用wget下载，带有重试和进度显示
@@ -159,7 +234,7 @@ jobs:
         LABEL org.opencontainers.image.source="https://github.com/${{ github.repository }}"
         LABEL org.opencontainers.image.url="https://github.com/${{ github.repository }}"
         LABEL org.opencontainers.image.documentation="https://github.com/${{ github.repository }}/blob/main/DOCKER_GUIDE.md"
-        LABEL org.opencontainers.image.version="${{ github.event.inputs.release_tag || 'v24.10.1-2025052114' }}"
+        LABEL org.opencontainers.image.version="${{ steps.find-latest.outputs.release_tag }}"
         LABEL org.opencontainers.image.created="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
         
         # 添加rootfs内容
@@ -195,13 +270,13 @@ jobs:
         push: true
         tags: |
           ghcr.io/${{ github.repository_owner }}/istoreos:latest
-          ghcr.io/${{ github.repository_owner }}/istoreos:${{ github.event.inputs.release_tag || 'v24.10.1-2025052114' }}
+          ghcr.io/${{ github.repository_owner }}/istoreos:${{ steps.find-latest.outputs.release_tag }}
         labels: |
           org.opencontainers.image.title=iStoreOS
           org.opencontainers.image.description=iStoreOS ARM64 RootFS Docker Image
           org.opencontainers.image.url=https://github.com/${{ github.repository }}
           org.opencontainers.image.source=https://github.com/${{ github.repository }}
-          org.opencontainers.image.version=${{ github.event.inputs.release_tag || 'v24.10.1-2025052114' }}
+          org.opencontainers.image.version=${{ steps.find-latest.outputs.release_tag }}
           org.opencontainers.image.created=${{ steps.date.outputs.date }}
           org.opencontainers.image.revision=${{ github.sha }}
           org.opencontainers.image.licenses=MIT
@@ -216,15 +291,16 @@ jobs:
         # iStoreOS ARM64 RootFS 提取
         
         ## 镜像信息
-        - **原始镜像**: \`${{ github.event.inputs.image_url || 'https://fw21.koolcenter.com:60010/iStoreOS/alpha/24.10/armsr/istoreos-24.10.1-2025052114-armsr-squashfs-combined-efi.img.gz' }}\`
+        - **原始镜像**: \`${{ steps.find-latest.outputs.image_url }}\`
         - **提取时间**: \`$(date -u '+%Y-%m-%d %H:%M:%S UTC')\`
         - **架构**: ARM64
         - **格式**: tar.gz压缩包
+        - **自动检测**: ✅ 自动获取最新版本
         
         ## Docker镜像
         - **镜像仓库**: \`ghcr.io/${{ github.repository_owner }}/istoreos\`
         - **最新版本**: \`ghcr.io/${{ github.repository_owner }}/istoreos:latest\`
-        - **指定版本**: \`ghcr.io/${{ github.repository_owner }}/istoreos:${{ github.event.inputs.release_tag || 'v24.10.1-2025052114' }}\`
+        - **指定版本**: \`ghcr.io/${{ github.repository_owner }}/istoreos:${{ steps.find-latest.outputs.release_tag }}\`
         
         ### Docker使用方法
         \`\`\`bash
@@ -277,8 +353,8 @@ jobs:
     - name: 创建Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.event.inputs.release_tag || 'v24.10.1-2025052114' }}
-        name: iStoreOS ARM64 RootFS ${{ github.event.inputs.release_tag || 'v24.10.1-2025052114' }}
+        tag_name: ${{ steps.find-latest.outputs.release_tag }}
+        name: iStoreOS ARM64 RootFS ${{ steps.find-latest.outputs.release_tag }}
         body_path: release_notes.md
         files: |
           rootfs.tar.gz
