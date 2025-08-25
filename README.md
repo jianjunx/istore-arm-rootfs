@@ -34,45 +34,31 @@
 
 ## 使用提取的RootFS
 
-### 基本解压
+📖 **详细指南**: 查看 [Docker使用指南](DOCKER_GUIDE.md) 了解完整的Docker部署和旁路由配置步骤。
+
+### 快速开始
 ```bash
-# 解压到指定目录
+# 基本解压命令
 mkdir -p ./rootfs
 tar -xzf rootfs.tar.gz -C ./rootfs
-
-# 查看文件结构
-ls -la ./rootfs/
 ```
+
+🐳 **Docker部署**: 推荐使用Docker来运行iStoreOS，支持旁路由模式。详见 [Docker使用指南](DOCKER_GUIDE.md)。
 
 ### Docker容器使用
 ```bash
-# 创建Docker镜像
-cat > Dockerfile << EOF
+# 快速创建Docker镜像
+cat > Dockerfile << 'EOF'
 FROM scratch
 ADD rootfs.tar.gz /
-CMD ["/bin/sh"]
+CMD ["/sbin/init"]
 EOF
 
-# 构建镜像
-docker build -t istoreos-rootfs .
-
-# 运行容器
-docker run -it istoreos-rootfs /bin/sh
+# 构建和运行
+docker build -t istoreos .
+docker run -d --name istoreos --privileged istoreos
 ```
 
-### chroot环境
-```bash
-# 解压rootfs
-sudo tar -xzf rootfs.tar.gz -C /mnt/istoreos
-
-# 准备chroot环境
-sudo mount --bind /dev /mnt/istoreos/dev
-sudo mount --bind /proc /mnt/istoreos/proc
-sudo mount --bind /sys /mnt/istoreos/sys
-
-# 进入chroot环境
-sudo chroot /mnt/istoreos /bin/sh
-```
 
 ## 工作流程说明
 
