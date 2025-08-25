@@ -32,6 +32,25 @@
 2. 选择最新的发布版本
 3. 下载 `rootfs.tar.gz` 文件
 
+### 使用Docker镜像（推荐）
+
+🚀 **直接使用预构建镜像**：
+
+```bash
+# 拉取最新镜像
+docker pull ghcr.io/YOUR_USERNAME/istoreos:latest
+
+# 运行容器
+docker run -d --name istoreos --privileged ghcr.io/YOUR_USERNAME/istoreos:latest
+
+# 旁路由模式（需要网络配置）
+docker run -d --name istoreos-gateway --privileged --network host ghcr.io/YOUR_USERNAME/istoreos:latest
+```
+
+> ⚠️ **注意**: 请将 `YOUR_USERNAME` 替换为您的GitHub用户名
+
+🔗 **查看可用镜像版本**：[GitHub Container Registry](https://github.com/YOUR_USERNAME/istore-arm-rootfs/pkgs/container/istoreos)
+
 ## 使用提取的RootFS
 
 📖 **详细指南**: 查看 [Docker使用指南](DOCKER_GUIDE.md) 了解完整的Docker部署和旁路由配置步骤。
@@ -45,9 +64,9 @@ tar -xzf rootfs.tar.gz -C ./rootfs
 
 🐳 **Docker部署**: 推荐使用Docker来运行iStoreOS，支持旁路由模式。详见 [Docker使用指南](DOCKER_GUIDE.md)。
 
-### Docker容器使用
+### 手动构建Docker镜像（备选方案）
 ```bash
-# 快速创建Docker镜像
+# 下载rootfs文件后，创建Dockerfile
 cat > Dockerfile << 'EOF'
 FROM scratch
 ADD rootfs.tar.gz /

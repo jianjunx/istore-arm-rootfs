@@ -147,6 +147,65 @@ jobs:
           exit 1
         fi
         
+    - name: 构建Docker镜像
+      run: |
+        echo "开始构建Docker镜像..."
+        
+        # 创建Dockerfile
+        cat > Dockerfile << 'EOF'
+        FROM scratch
+        LABEL maintainer="iStoreOS Docker Image"
+        LABEL description="iStoreOS ARM64 RootFS Docker Image"
+        LABEL org.opencontainers.image.source="https://github.com/${{ github.repository }}"
+        LABEL org.opencontainers.image.url="https://github.com/${{ github.repository }}"
+        LABEL org.opencontainers.image.documentation="https://github.com/${{ github.repository }}/blob/main/DOCKER_GUIDE.md"
+        LABEL org.opencontainers.image.version="${{ github.event.inputs.release_tag || 'v24.10.1-2025052114' }}"
+        LABEL org.opencontainers.image.created="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+        
+        # 添加rootfs内容
+        ADD rootfs.tar.gz /
+        
+        # 设置环境变量
+        ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        ENV TERM=xterm
+        
+        # 设置入口点
+        CMD ["/sbin/init"]
+        EOF
+        
+        echo "Dockerfile创建完成"
+        cat Dockerfile
+        
+    - name: 登录到GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 设置Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: 构建并推送Docker镜像
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        platforms: linux/arm64
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository_owner }}/istoreos:latest
+          ghcr.io/${{ github.repository_owner }}/istoreos:${{ github.event.inputs.release_tag || 'v24.10.1-2025052114' }}
+        labels: |
+          org.opencontainers.image.title=iStoreOS
+          org.opencontainers.image.description=iStoreOS ARM64 RootFS Docker Image
+          org.opencontainers.image.url=https://github.com/${{ github.repository }}
+          org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          org.opencontainers.image.version=${{ github.event.inputs.release_tag || 'v24.10.1-2025052114' }}
+          org.opencontainers.image.created=${{ steps.date.outputs.date }}
+          org.opencontainers.image.revision=${{ github.sha }}
+          org.opencontainers.image.licenses=MIT
+        
     - name: 准备发布文件
       run: |
         # 获取镜像信息
@@ -162,14 +221,54 @@ jobs:
         - **架构**: ARM64
         - **格式**: tar.gz压缩包
         
+        ## Docker镜像
+        - **镜像仓库**: \`ghcr.io/${{ github.repository_owner }}/istoreos\`
+        - **最新版本**: \`ghcr.io/${{ github.repository_owner }}/istoreos:latest\`
+        - **指定版本**: \`ghcr.io/${{ github.repository_owner }}/istoreos:${{ github.event.inputs.release_tag || 'v24.10.1-2025052114' }}\`
+        
+        ### Docker使用方法
+        \`\`\`bash
+        # 拉取镜像
+        docker pull ghcr.io/${{ github.repository_owner }}/istoreos:latest
+        
+        # 运行容器
+        docker run -d --name istoreos --privileged ghcr.io/${{ github.repository_owner }}/istoreos:latest
+        
+        # 旁路由模式运行（需要调整网络配置）
+        docker run -d --name istoreos-gateway --privileged --network host ghcr.io/${{ github.repository_owner }}/istoreos:latest
+        \`\`\`
+        
         ## 使用方法
+        
+        ### 方法1: 使用Docker镜像（推荐）
+        \`\`\`bash
+        docker pull ghcr.io/${{ github.repository_owner }}/istoreos:latest
+        docker run -d --privileged --name istoreos ghcr.io/${{ github.repository_owner }}/istoreos:latest
+        \`\`\`
+        
+        ### 方法2: 手动构建Docker镜像
         1. 下载 \`rootfs.tar.gz\` 文件
-        2. 解压到目标目录: \`tar -xzf rootfs.tar.gz -C /target/directory\`
-        3. 根据需要进行定制化配置
+        2. 创建Dockerfile：
+        \`\`\`dockerfile
+        FROM scratch
+        ADD rootfs.tar.gz /
+        CMD ["/sbin/init"]
+        \`\`\`
+        3. 构建镜像：\`docker build -t istoreos .\`
+        4. 运行容器：\`docker run -d --privileged istoreos\`
+        
+        ### 方法3: 直接解压使用
+        \`\`\`bash
+        tar -xzf rootfs.tar.gz -C /target/directory
+        \`\`\`
         
         ## 文件校验
         - **SHA256**: \`$(sha256sum rootfs.tar.gz | cut -d' ' -f1)\`
         - **大小**: \`$(du -h rootfs.tar.gz | cut -f1)\`
+        
+        ## 相关文档
+        - [Docker使用指南](https://github.com/${{ github.repository }}/blob/main/DOCKER_GUIDE.md)
+        - [README](https://github.com/${{ github.repository }}/blob/main/README.md)
         EOF
         
         echo "发布文件准备完成"
@@ -191,5 +290,8 @@ jobs:
     - name: 清理工作空间
       run: |
         echo "清理临时文件..."
-        rm -f istoreos.img rootfs.tar.gz release_notes.md
+        rm -f istoreos.img rootfs.tar.gz release_notes.md Dockerfile
         echo "工作流程完成"
+        echo "✅ rootfs提取完成"
+        echo "✅ Docker镜像已发布到 ghcr.io/${{ github.repository_owner }}/istoreos"
+        echo "✅ Release已创建完成"
