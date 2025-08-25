@@ -1,0 +1,152 @@
+name: Extract iStoreOS ARM64 RootFS
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_url:
+        description: 'iStoreOS镜像下载URL'
+        required: true
+        default: 'https://fw21.koolcenter.com:60010/iStoreOS/alpha/24.10/armsr/istoreos-24.10.1-2025052114-armsr-squashfs-combined-efi.img.gz'
+      release_tag:
+        description: '发布标签'
+        required: true
+        default: 'v24.10.1-2025052114'
+
+
+jobs:
+  extract-rootfs:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+      
+    - name: 设置工作环境
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wget gzip fdisk parted squashfs-tools
+        
+    - name: 下载iStoreOS镜像
+      run: |
+        echo "开始下载镜像文件..."
+        wget -O istoreos.img.gz "${{ github.event.inputs.image_url || 'https://fw21.koolcenter.com:60010/iStoreOS/alpha/24.10/armsr/istoreos-24.10.1-2025052114-armsr-squashfs-combined-efi.img.gz' }}"
+        echo "镜像文件下载完成"
+        
+    - name: 解压镜像文件
+      run: |
+        echo "开始解压镜像文件..."
+        gzip -d istoreos.img.gz
+        echo "镜像文件解压完成"
+        ls -lh istoreos.img
+        
+    - name: 分析镜像分区结构
+      run: |
+        echo "分析镜像分区结构..."
+        fdisk -l istoreos.img
+        parted istoreos.img print
+        
+    - name: 挂载并提取rootfs
+      run: |
+        echo "开始提取rootfs..."
+        
+        # 创建loop设备
+        sudo losetup -P /dev/loop0 istoreos.img
+        
+        # 列出所有分区
+        lsblk /dev/loop0
+        
+        # 通常rootfs在第二个分区，但我们需要确认
+        sudo mkdir -p /mnt/rootfs
+        
+        # 尝试挂载可能的rootfs分区
+        for partition in /dev/loop0p*; do
+          if [ -e "$partition" ]; then
+            echo "尝试挂载分区: $partition"
+            if sudo mount -o ro "$partition" /mnt/rootfs 2>/dev/null; then
+              echo "成功挂载分区: $partition"
+              ls -la /mnt/rootfs/
+              
+              # 检查是否是rootfs（包含典型的Linux根目录结构）
+              if [ -d "/mnt/rootfs/bin" ] && [ -d "/mnt/rootfs/etc" ] && [ -d "/mnt/rootfs/usr" ]; then
+                echo "找到rootfs分区: $partition"
+                
+                # 创建rootfs压缩包
+                echo "创建rootfs压缩包..."
+                sudo tar -czf rootfs.tar.gz -C /mnt/rootfs .
+                
+                # 设置正确的权限
+                sudo chown $USER:$USER rootfs.tar.gz
+                
+                echo "RootFS提取完成"
+                ls -lh rootfs.tar.gz
+                
+                sudo umount /mnt/rootfs
+                break
+              else
+                echo "该分区不是rootfs，继续查找..."
+                sudo umount /mnt/rootfs
+              fi
+            else
+              echo "无法挂载分区: $partition"
+            fi
+          fi
+        done
+        
+        # 清理loop设备
+        sudo losetup -d /dev/loop0
+        
+        # 验证rootfs文件是否创建成功
+        if [ ! -f "rootfs.tar.gz" ]; then
+          echo "错误：未能找到或提取rootfs"
+          exit 1
+        fi
+        
+    - name: 准备发布文件
+      run: |
+        # 获取镜像信息
+        echo "准备发布文件..."
+        
+        # 创建发布说明
+        cat > release_notes.md << EOF
+        # iStoreOS ARM64 RootFS 提取
+        
+        ## 镜像信息
+        - **原始镜像**: \`${{ github.event.inputs.image_url || 'https://fw21.koolcenter.com:60010/iStoreOS/alpha/24.10/armsr/istoreos-24.10.1-2025052114-armsr-squashfs-combined-efi.img.gz' }}\`
+        - **提取时间**: \`$(date -u '+%Y-%m-%d %H:%M:%S UTC')\`
+        - **架构**: ARM64
+        - **格式**: tar.gz压缩包
+        
+        ## 使用方法
+        1. 下载 \`rootfs.tar.gz\` 文件
+        2. 解压到目标目录: \`tar -xzf rootfs.tar.gz -C /target/directory\`
+        3. 根据需要进行定制化配置
+        
+        ## 文件校验
+        - **SHA256**: \`$(sha256sum rootfs.tar.gz | cut -d' ' -f1)\`
+        - **大小**: \`$(du -h rootfs.tar.gz | cut -f1)\`
+        EOF
+        
+        echo "发布文件准备完成"
+        cat release_notes.md
+        
+    - name: 创建Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.event.inputs.release_tag || 'v24.10.1-2025052114' }}
+        name: iStoreOS ARM64 RootFS ${{ github.event.inputs.release_tag || 'v24.10.1-2025052114' }}
+        body_path: release_notes.md
+        files: |
+          rootfs.tar.gz
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 清理工作空间
+      run: |
+        echo "清理临时文件..."
+        rm -f istoreos.img rootfs.tar.gz release_notes.md
+        echo "工作流程完成"

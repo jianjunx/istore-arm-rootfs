@@ -1,0 +1,38 @@
+# 临时文件
+*.tmp
+*.temp
+temp/
+tmp/
+
+# 镜像文件
+*.img
+*.img.gz
+*.iso
+*.raw
+
+# 提取的文件
+rootfs/
+rootfs.tar.gz
+*.tar.gz
+*.tar.xz
+*.tar.bz2
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 日志文件
+*.log
+logs/
+
+# 编辑器配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 其他
+.env
+.env.local
+node_modules/
