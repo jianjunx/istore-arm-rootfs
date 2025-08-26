@@ -23,6 +23,7 @@ jobs:
     
     permissions:
       contents: write
+      packages: write
       
     steps:
     - name: 检出代码
